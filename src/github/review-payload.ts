@@ -3,10 +3,7 @@ import { ModelFinding, ModelReviewResult, PullRequestFile } from '../review/type
 export type InlineReviewComment = {
   path: string
   body: string
-  line?: number
-  start_line?: number
-  side?: 'RIGHT'
-  start_side?: 'RIGHT'
+  position?: number
   subject_type?: 'file'
 }
 
@@ -25,13 +22,7 @@ export function buildInlineReviewComments(files: PullRequestFile[], findings: Mo
       return [{ path: finding.path, body, subject_type: 'file' }]
     }
 
-    return [{
-      path: finding.path,
-      body,
-      line: anchor.line,
-      side: 'RIGHT',
-      ...(anchor.startLine ? { start_line: anchor.startLine, start_side: 'RIGHT' } : {})
-    }]
+    return [{ path: finding.path, body, position: anchor.position }]
   })
 }
 
@@ -53,50 +44,56 @@ function buildFindingBody(finding: ModelFinding): string {
   return `${prefix} ${finding.body}${docs}${suggestion}`
 }
 
-function resolveAnchor(file: PullRequestFile, finding: ModelFinding): { type: 'line', line: number, startLine?: number } | { type: 'file' } {
+function resolveAnchor(file: PullRequestFile, finding: ModelFinding): { type: 'line', position: number } | { type: 'file' } {
   if (!finding.line || !file.patch) {
     return { type: 'file' }
   }
 
-  const addedLines = getAddedLinesFromPatch(file.patch)
-  if (!addedLines.has(finding.line)) {
+  const linePositions = getPatchLinePositions(file.patch)
+  const position = linePositions.get(finding.line)
+  if (position === undefined) {
     return { type: 'file' }
   }
 
   if (finding.startLine !== undefined) {
-    for (let current = finding.startLine; current <= finding.line; current += 1) {
-      if (!addedLines.has(current)) {
+    for (let current = finding.startLine; current < finding.line; current += 1) {
+      if (!linePositions.has(current)) {
         return { type: 'file' }
       }
     }
   }
 
-  return { type: 'line', line: finding.line, startLine: finding.startLine }
+  return { type: 'line', position }
 }
 
-function getAddedLinesFromPatch(patch: string): Set<number> {
-  const addedLines = new Set<number>()
+function getPatchLinePositions(patch: string): Map<number, number> {
+  const lineToPosition = new Map<number, number>()
   let currentRightLine = 0
+  let position = 0
 
   for (const rawLine of patch.split('\n')) {
+    if (rawLine.startsWith('\\')) continue
+
     const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(rawLine)
     if (header) {
       currentRightLine = Number(header[1])
+      position += 1
       continue
     }
+
+    if (position === 0) continue
+
+    position += 1
 
     if (rawLine.startsWith('+') && !rawLine.startsWith('+++')) {
-      addedLines.add(currentRightLine)
+      lineToPosition.set(currentRightLine, position)
       currentRightLine += 1
-      continue
+    } else if (rawLine.startsWith('-') && !rawLine.startsWith('---')) {
+      // deletion line — advances position but not the right-side line counter
+    } else {
+      currentRightLine += 1
     }
-
-    if (rawLine.startsWith('-') && !rawLine.startsWith('---')) {
-      continue
-    }
-
-    currentRightLine += 1
   }
 
-  return addedLines
+  return lineToPosition
 }
