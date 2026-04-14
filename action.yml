@@ -1,0 +1,29 @@
+name: "cubo-code-review"
+description: "AI-assisted pull request review with grouped inline review comments."
+author: "OpenAI"
+inputs:
+  github-token:
+    description: "GitHub token with pull-requests:write permission."
+    required: true
+  default-target:
+    description: "Default target in backend/provider/model format."
+    required: false
+  default-skill:
+    description: "Optional default user skill path inside the repository."
+    required: false
+  review-language:
+    description: "Language to use for the bot review content, for example en-US or pt-BR."
+    required: false
+    default: "en-US"
+  openrouter-api-key:
+    description: "OpenRouter API key. Required when target backend is openrouter."
+    required: false
+  opencode-api-key:
+    description: "OpenCode API key. Required when target backend is opencode."
+    required: false
+runs:
+  using: "node20"
+  main: "dist/bundle/index.js"
+branding:
+  icon: "check-square"
+  color: "blue"

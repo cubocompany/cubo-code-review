@@ -1,0 +1,30 @@
+name: Cubo review
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/cubo-review') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: your-org/cubo-code-review@v0.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          default-target: openrouter/anthropic/claude-sonnet-4.6
+          default-skill: .github/review/SKILL.md
+          review-language: pt-BR
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
