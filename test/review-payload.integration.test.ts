@@ -30,7 +30,8 @@ test('builds grouped inline review comments with categories and suggestions', ()
   assert.equal(comments.length, 2)
   assert.match(comments[0].body, /^\*\*issue(?: \(blocking\))?:\*\*/) 
   assert.match(comments[0].body, /```suggestion/)
-  assert.equal(comments[0].position, 1)
+  assert.equal(comments[0].line, 12)
+  assert.equal(comments[0].side, 'RIGHT')
   assert.equal(comments[1].subject_type, 'file')
   assert.equal(determineReviewEvent(result), 'REQUEST_CHANGES')
 })
@@ -54,7 +55,8 @@ test('keeps inline comment but omits suggestion block for context lines', () => 
   ], result.findings)
 
   assert.equal(comments.length, 1)
-  assert.equal(comments[0].position, 1)
+  assert.equal(comments[0].line, 12)
+  assert.equal(comments[0].side, 'RIGHT')
   assert.doesNotMatch(comments[0].body, /```suggestion/)
   assert.match(comments[0].body, /^\*\*suggestion:\*\*/)
 })
@@ -83,6 +85,23 @@ test('falls back to file-level comment when target line is semantically incompat
 
   assert.equal(comments.length, 1)
   assert.equal(comments[0].subject_type, 'file')
-  assert.equal(comments[0].position, undefined)
+  assert.equal(comments[0].line, undefined)
   assert.doesNotMatch(comments[0].body, /```suggestion/)
+})
+
+test('normalizes duplicated conventional comment labels from model body', () => {
+  const comments = buildInlineReviewComments([
+    { path: 'src/app.ts', status: 'modified', patch: '@@ -11,0 +12,1 @@\n+const ownerId = value' }
+  ], [
+    {
+      category: 'nitpick',
+      path: 'src/app.ts',
+      line: 12,
+      body: '**nitpick:** Evite casts repetitivos quando o tipo já for string.'
+    }
+  ])
+
+  assert.equal(comments.length, 1)
+  assert.match(comments[0].body, /^\*\*nitpick:\*\* Evite casts repetitivos/)
+  assert.doesNotMatch(comments[0].body, /^\*\*nitpick:\*\* \*\*nitpick:\*\*/)
 })
