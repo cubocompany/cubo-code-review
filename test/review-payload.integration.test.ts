@@ -23,7 +23,7 @@ test('builds grouped inline review comments with categories and suggestions', ()
   }))
 
   const comments = buildInlineReviewComments([
-    { path: 'src/app.ts', status: 'modified', patch: '@@' },
+    { path: 'src/app.ts', status: 'modified', patch: '@@ -1,0 +12,1 @@\n+added line' },
     { path: 'README.md', status: 'modified', patch: '@@' }
   ], result.findings)
 
