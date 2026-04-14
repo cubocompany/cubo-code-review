@@ -20,5 +20,5 @@ test('buildInlineReviewComments falls back to file comments when a line is not p
 
   assert.equal(comments.length, 1)
   assert.equal(comments[0].subject_type, 'file')
-  assert.equal(comments[0].line, undefined)
+  assert.equal(comments[0].position, undefined)
 })
