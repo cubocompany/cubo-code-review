@@ -82,7 +82,8 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     '- Use file-level findings by omitting line when confidence is low.',
     '- Add documentationUrl only when it points to official docs.',
     '- Keep summary concise.',
-    '- Never wrap the JSON in markdown fences.'
+    '- Never wrap the JSON in markdown fences.',
+    '- Omit optional fields (suggestedCode, documentationUrl, line, startLine) entirely when not applicable. Do not use empty strings or null for optional fields.'
   ].filter(Boolean).join('\n')
 
   return { prompt, includedFiles, omittedFiles, truncatedFiles }

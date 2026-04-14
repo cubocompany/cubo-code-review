@@ -46,13 +46,18 @@ export function parseModelResponse(raw: string): ModelReviewResult {
       ? undefined
       : getOfficialDocsUrl(finding.documentationUrl, `findings[${index}].documentationUrl`)
 
+    const suggestedCodeRaw = finding.suggestedCode
+    const suggestedCode = suggestedCodeRaw === undefined || suggestedCodeRaw === null || suggestedCodeRaw === ''
+      ? undefined
+      : getString(suggestedCodeRaw, `findings[${index}].suggestedCode`)
+
     return {
       category,
       path,
       body,
       line,
       startLine,
-      suggestedCode: finding.suggestedCode === undefined ? undefined : getString(finding.suggestedCode, `findings[${index}].suggestedCode`),
+      suggestedCode,
       documentationUrl
     }
   })
