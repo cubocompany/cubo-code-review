@@ -26,12 +26,18 @@ export function buildInlineReviewComments(files: PullRequestFile[], findings: Mo
   })
 }
 
-export function determineReviewEvent(result: ModelReviewResult): 'COMMENT' | 'REQUEST_CHANGES' {
+export function determineReviewEvent(result: ModelReviewResult): 'APPROVE' | 'COMMENT' | 'REQUEST_CHANGES' {
   if (result.verdict === 'request_changes') {
     return 'REQUEST_CHANGES'
   }
   const hasIssue = result.findings.some((finding) => finding.category === 'issue')
-  return hasIssue ? 'REQUEST_CHANGES' : 'COMMENT'
+  if (hasIssue) {
+    return 'REQUEST_CHANGES'
+  }
+  if (result.verdict === 'approve') {
+    return 'APPROVE'
+  }
+  return 'COMMENT'
 }
 
 function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string {

@@ -63,8 +63,8 @@ export function parseModelResponse(raw: string): ModelReviewResult {
   })
 
   const verdict = obj.verdict
-  if (verdict !== undefined && verdict !== 'comment' && verdict !== 'request_changes') {
-    throw new Error('Model response verdict must be either comment or request_changes when provided.')
+  if (verdict !== undefined && verdict !== 'approve' && verdict !== 'comment' && verdict !== 'request_changes') {
+    throw new Error('Model response verdict must be approve, comment, or request_changes when provided.')
   }
 
   return {

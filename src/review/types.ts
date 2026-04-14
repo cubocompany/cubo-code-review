@@ -42,7 +42,7 @@ export type ModelFinding = {
 
 export type ModelReviewResult = {
   summary: string
-  verdict?: 'comment' | 'request_changes'
+  verdict?: 'approve' | 'comment' | 'request_changes'
   findings: ModelFinding[]
   parserWarnings?: string[]
 }

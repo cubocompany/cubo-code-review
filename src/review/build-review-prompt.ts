@@ -55,15 +55,15 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     `Pull request #${context.pullNumber}: ${context.title}`,
     `PR description:\n${context.body || '[No description provided]'}`,
     '',
-    'Changed files and patches:',
+    'Changed files and patches (each line is prefixed with its right-side line number):',
     fileSections.join('\n\n'),
     omittedBlock,
     truncatedBlock,
     '',
     'Return only valid JSON using this schema:',
     '{',
-    '  "summary": "string",',
-    '  "verdict": "comment | request_changes",',
+    '  "summary": "string (1-2 sentences about the most important findings, or state the PR looks good)",',
+    '  "verdict": "approve | comment | request_changes",',
     '  "findings": [',
     '    {',
     '      "category": "issue | question | nitpick | refactor | suggestion",',
@@ -71,22 +71,21 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     '      "line": 10,',
     '      "startLine": 8,',
     '      "body": "Actionable review comment in the requested review language.",',
-    '      "suggestedCode": "optional replacement code",',
+    '      "suggestedCode": "optional replacement code for the exact line indicated",',
     '      "documentationUrl": "optional official documentation URL"',
     '    }',
     '  ]',
     '}',
     '',
     'Rules:',
-    '- ALWAYS include "line" for every finding. Inline comments are only possible when "line" is provided. Omit "line" only as a last resort when absolutely no line can be identified.',
-    '- "line" must be the exact line number from the RIGHT side of the diff. Calculate it from the @@ hunk header: the +N number is the starting line, then count forward through context lines (space prefix) and addition lines (+ prefix), skipping deletion lines (- prefix).',
-    '- CRITICAL: When providing "suggestedCode", double-check that "line" points to the exact line you want to replace. The suggestion will be applied literally to that line. If "line" is wrong, the suggestion will corrupt unrelated code.',
-    '- Use "startLine" together with "line" when the finding spans multiple consecutive lines in the diff.',
-    '- You can comment on context lines (unchanged lines visible in the diff), not only on added lines.',
-    '- Add documentationUrl only when it points to official docs.',
-    '- Keep summary concise.',
+    '- ALWAYS include "line" for every finding. Read the number prefix at the start of each patch line — that IS the line number to use. Do not calculate or guess.',
+    '- CRITICAL: When providing "suggestedCode", verify that "line" points to the EXACT line whose content you want to replace. Read the content next to that line number in the patch and confirm it matches what you intend to change. If unsure, omit suggestedCode.',
+    '- Use "startLine" together with "line" when the finding spans multiple consecutive lines.',
+    '- You can comment on any line visible in the patch (context or added lines), not only on added lines.',
+    '- Use verdict "approve" when there are no issues or only minor nitpicks. Use "request_changes" only for correctness, safety, or critical problems. Use "comment" otherwise.',
+    '- Summary must be at most 2 sentences. Focus on the key findings. If the PR is clean, say so.',
     '- Never wrap the JSON in markdown fences.',
-    '- Omit optional fields (suggestedCode, documentationUrl, line, startLine) entirely when not applicable. Do not use empty strings or null for optional fields.'
+    '- Omit optional fields (suggestedCode, documentationUrl, line, startLine) entirely when not applicable. Do not use empty strings or null.'
   ].filter(Boolean).join('\n')
 
   return { prompt, includedFiles, omittedFiles, truncatedFiles }
@@ -94,7 +93,38 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
 
 function buildFileSection(file: PullRequestFile): string {
   const patch = truncatePatch(file.patch ?? '[No patch available]')
-  return `## File: ${file.path}\nStatus: ${file.status}\nPatch:\n\n${patch}`
+  const annotated = annotatePatchWithLineNumbers(patch)
+  return `## File: ${file.path}\nStatus: ${file.status}\nPatch:\n\n${annotated}`
+}
+
+function annotatePatchWithLineNumbers(patch: string): string {
+  const lines = patch.split('\n')
+  const annotated: string[] = []
+  let rightLine = 0
+
+  for (const line of lines) {
+    const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line)
+    if (header) {
+      rightLine = Number(header[1])
+      annotated.push(line)
+      continue
+    }
+
+    if (line.startsWith('-') && !line.startsWith('---')) {
+      annotated.push(`    :${line}`)
+      continue
+    }
+
+    if (line.startsWith('\\')) {
+      annotated.push(line)
+      continue
+    }
+
+    annotated.push(`${String(rightLine).padStart(4)}:${line}`)
+    rightLine += 1
+  }
+
+  return annotated.join('\n')
 }
 
 function truncatePatch(patch: string): string {
