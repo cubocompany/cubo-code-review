@@ -11,6 +11,10 @@ inputs:
   default-skill:
     description: "Optional default user skill path inside the repository."
     required: false
+  review-command:
+    description: "Command that triggers the review from the PR comment, for example /cubo-review or /uqbar-review."
+    required: false
+    default: "/cubo-review"
   review-language:
     description: "Language to use for the bot review content, for example en-US or pt-BR."
     required: false

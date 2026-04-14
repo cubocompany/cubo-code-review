@@ -15,11 +15,12 @@ async function run(): Promise<void> {
     const githubToken = core.getInput('github-token', { required: true })
     const defaultTargetRaw = core.getInput('default-target')
     const defaultSkill = core.getInput('default-skill')
+    const reviewCommand = core.getInput('review-command') || '/cubo-review'
     const reviewLanguage = core.getInput('review-language') || 'en-US'
     const commentBody = process.env.COMMENT_BODY ?? githubContext.payload.comment?.body ?? ''
 
-    const command = parseReviewCommand(commentBody)
-    const target = command.target ?? (defaultTargetRaw ? parseReviewCommand(`/cubo-review target=${defaultTargetRaw}`).target : undefined)
+    const command = parseReviewCommand(commentBody, reviewCommand)
+    const target = command.target ?? (defaultTargetRaw ? parseReviewCommand(`${reviewCommand} target=${defaultTargetRaw}`, reviewCommand).target : undefined)
     if (!target) {
       throw new Error('No target was provided. Set target=... in the command or configure the default-target input.')
     }

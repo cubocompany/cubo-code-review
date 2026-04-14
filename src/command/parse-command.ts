@@ -1,18 +1,18 @@
 import { ExecutionTarget, ReviewCommand, SupportedBackend } from './types.js'
 
-const COMMAND_REGEX = /^\/cubo-review(?:\s+.+)?$/
 const PAIR_REGEX = /([a-zA-Z][a-zA-Z0-9_-]*)=([^\s]+)/g
 const SUPPORTED_BACKENDS: SupportedBackend[] = ['openrouter', 'opencode']
+const DEFAULT_REVIEW_COMMAND = '/cubo-review'
 
-export function isCuboReviewCommand(body: string): boolean {
+export function isCuboReviewCommand(body: string, reviewCommand = DEFAULT_REVIEW_COMMAND): boolean {
   const firstLine = getFirstLine(body)
-  return COMMAND_REGEX.test(firstLine)
+  return buildCommandRegex(reviewCommand).test(firstLine)
 }
 
-export function parseReviewCommand(body: string): ReviewCommand {
+export function parseReviewCommand(body: string, reviewCommand = DEFAULT_REVIEW_COMMAND): ReviewCommand {
   const firstLine = getFirstLine(body)
-  if (!COMMAND_REGEX.test(firstLine)) {
-    throw new Error('Comment does not contain a valid /cubo-review command on the first line.')
+  if (!buildCommandRegex(reviewCommand).test(firstLine)) {
+    throw new Error(`Comment does not contain a valid ${reviewCommand} command on the first line.`)
   }
 
   const pairs = [...firstLine.matchAll(PAIR_REGEX)]
@@ -36,6 +36,11 @@ export function parseReviewCommand(body: string): ReviewCommand {
   }
 
   return parsed
+}
+
+function buildCommandRegex(reviewCommand: string): RegExp {
+  const escapedCommand = reviewCommand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`^${escapedCommand}(?:\\s+.+)?$`)
 }
 
 export function parseExecutionTarget(input: string): ExecutionTarget {

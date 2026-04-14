@@ -4,7 +4,7 @@ A reusable GitHub Action that turns a PR comment into a formal GitHub review wit
 
 ## How it works
 
-A maintainer or contributor posts a `/cubo-review` comment on any pull request. The action reads the diff, loads skill documents, calls the configured AI model, and submits a structured GitHub review with inline comments.
+A maintainer or contributor posts a review command comment on any pull request. By default the command is `/cubo-review`, but it can be customized (for example `/uqbar-review`). The action reads the diff, loads skill documents, calls the configured AI model, and submits a structured GitHub review with inline comments.
 
 ## Quick start
 
@@ -33,6 +33,7 @@ jobs:
       - uses: cubocompany/cubo-code-review@v1.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          review-command: /cubo-review
           default-target: openrouter/anthropic/claude-sonnet-4-5
           review-language: pt-BR
           openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
@@ -61,6 +62,7 @@ Trigger the review by commenting on any PR:
 | `github-token` | Yes | — | GitHub token with `pull-requests: write` permission. Use `${{ secrets.GITHUB_TOKEN }}`. |
 | `default-target` | No | — | Fallback AI target used when the comment does not specify `target=`. Format: `backend/provider/model`. |
 | `default-skill` | No | — | Path to a skill file inside the repository, loaded as the default review guide. Silently ignored if the file does not exist. |
+| `review-command` | No | `/cubo-review` | Command that triggers the action from a PR comment. Example: `/cubo-review`, `/uqbar-review`. |
 | `review-language` | No | `en-US` | Language for the review output. Examples: `en-US`, `pt-BR`, `es-ES`. |
 | `openrouter-api-key` | No | — | Required when the target backend is `openrouter`. |
 | `opencode-api-key` | No | — | Required when the target backend is `opencode`. |
@@ -74,8 +76,10 @@ Trigger the review by commenting on any PR:
 Only the **first line** of the comment is parsed. All keys are optional.
 
 ```
-/cubo-review [target=backend/provider/model] [skill=path/to/SKILL.md] [focus=topic]
+<review-command> [target=backend/provider/model] [skill=path/to/SKILL.md] [focus=topic]
 ```
+
+By default, `<review-command>` is `/cubo-review`. If you configure `review-command: /uqbar-review`, then the first line must start with `/uqbar-review` instead.
 
 | Key | Description |
 |---|---|
@@ -96,6 +100,34 @@ Only the **first line** of the comment is parsed. All keys are optional.
 ```
 ```
 /cubo-review target=opencode/openai/gpt-4o skill=.github/review/SKILL.md focus=performance
+```
+
+Custom command example:
+
+```yaml
+jobs:
+  review:
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/uqbar-review') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cubocompany/cubo-code-review@v1.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          review-command: /uqbar-review
+          default-target: openrouter/anthropic/claude-sonnet-4-5
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+```
+
+Trigger it with:
+
+```
+/uqbar-review
 ```
 
 ---
@@ -138,6 +170,7 @@ Place it at `.github/review/SKILL.md` and reference it via `default-skill`:
 - uses: cubocompany/cubo-code-review@v1.0.0
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
+    review-command: /cubo-review
     default-target: openrouter/anthropic/claude-sonnet-4-5
     default-skill: .github/review/SKILL.md
     openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
@@ -181,6 +214,7 @@ jobs:
       - uses: cubocompany/cubo-code-review@v1.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          review-command: /cubo-review
           default-target: openrouter/anthropic/claude-sonnet-4-5
           default-skill: .github/review/SKILL.md
           review-language: pt-BR
