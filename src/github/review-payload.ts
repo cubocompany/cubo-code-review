@@ -17,27 +17,24 @@ export function buildInlineReviewComments(files: PullRequestFile[], findings: Mo
     }
 
     const anchor = resolveAnchor(file, finding)
-    const body = buildFindingBody(finding, anchor)
-    if (anchor.type === 'file') {
+    const compatibleAnchor = anchor.type === 'line' && !isSemanticallyCompatible(finding, anchor)
+      ? { type: 'file' as const }
+      : anchor
+    const body = buildFindingBody(finding, compatibleAnchor)
+    if (compatibleAnchor.type === 'file') {
       return [{ path: finding.path, body, subject_type: 'file' }]
     }
 
-    return [{ path: finding.path, body, position: anchor.position }]
+    return [{ path: finding.path, body, position: compatibleAnchor.position }]
   })
 }
 
-export function determineReviewEvent(result: ModelReviewResult): 'APPROVE' | 'COMMENT' | 'REQUEST_CHANGES' {
+export function determineReviewEvent(result: ModelReviewResult): 'COMMENT' | 'REQUEST_CHANGES' {
   if (result.verdict === 'request_changes') {
     return 'REQUEST_CHANGES'
   }
   const hasIssue = result.findings.some((finding) => finding.category === 'issue')
-  if (hasIssue) {
-    return 'REQUEST_CHANGES'
-  }
-  if (result.verdict === 'approve') {
-    return 'APPROVE'
-  }
-  return 'COMMENT'
+  return hasIssue ? 'REQUEST_CHANGES' : 'COMMENT'
 }
 
 function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string {
@@ -45,7 +42,7 @@ function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string
   const docs = finding.documentationUrl ? `\n\nOfficial documentation: ${finding.documentationUrl}` : ''
 
   let suggestion = ''
-  if (finding.suggestedCode && finding.line && anchor.type === 'line') {
+  if (finding.suggestedCode && finding.line && anchor.type === 'line' && anchor.isAddedLine) {
     const lineContent = anchor.content.replace(/^[+ ]/, '')
     const codeNormalized = finding.suggestedCode.trim()
     const lineNormalized = lineContent.trim()
@@ -57,8 +54,56 @@ function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string
   return `${prefix} ${finding.body}${docs}${suggestion}`
 }
 
+function isSemanticallyCompatible(finding: ModelFinding, anchor: Extract<ResolvedAnchor, { type: 'line' }>): boolean {
+  const referenceTokens = getReferenceTokens(finding, anchor)
+  if (referenceTokens.length === 0) {
+    return true
+  }
+
+  const lineTokens = new Set(extractIdentifierTokens(anchor.content.replace(/^[+ ]/, '')))
+  return referenceTokens.some((token) => lineTokens.has(token))
+}
+
+function getReferenceTokens(finding: ModelFinding, anchor: Extract<ResolvedAnchor, { type: 'line' }>): string[] {
+  const tokens = new Set<string>()
+
+  if (anchor.isAddedLine) {
+    for (const token of extractIdentifierTokens(finding.suggestedCode ?? '')) {
+      tokens.add(token)
+    }
+  }
+
+  for (const token of extractBodyCodeTokens(finding.body)) {
+    tokens.add(token)
+  }
+
+  return [...tokens]
+}
+
+function extractIdentifierTokens(input: string): string[] {
+  return [...input.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)]
+    .map((match) => match[0].toLowerCase())
+    .filter((token) => token.length >= 3 && !IGNORED_IDENTIFIER_TOKENS.has(token))
+}
+
+function extractBodyCodeTokens(input: string): string[] {
+  const explicitCodeTokens = [
+    ...input.matchAll(/`([^`]+)`/g),
+    ...input.matchAll(/\b(?:[A-Za-z_][A-Za-z0-9_]*\.)+[A-Za-z_][A-Za-z0-9_]*\b/g),
+    ...input.matchAll(/\b[A-Za-z_]*[A-Z][A-Za-z0-9_]*\b/g)
+  ]
+
+  return explicitCodeTokens.flatMap((match) => extractIdentifierTokens(match[1] ?? match[0]))
+}
+
+const IGNORED_IDENTIFIER_TOKENS = new Set([
+  'const', 'let', 'var', 'return', 'true', 'false', 'null', 'undefined', 'this', 'that', 'with', 'from', 'into',
+  'when', 'only', 'should', 'consider', 'using', 'avoid', 'make', 'sure', 'does', 'line', 'code',
+  'expression', 'logic', 'state'
+])
+
 type ResolvedAnchor =
-  | { type: 'line', position: number, content: string }
+  | { type: 'line', position: number, content: string, isAddedLine: boolean }
   | { type: 'file' }
 
 function resolveAnchor(file: PullRequestFile, finding: ModelFinding): ResolvedAnchor {
@@ -80,10 +125,10 @@ function resolveAnchor(file: PullRequestFile, finding: ModelFinding): ResolvedAn
     }
   }
 
-  return { type: 'line', position: info.position, content: info.content }
+  return { type: 'line', position: info.position, content: info.content, isAddedLine: info.isAddedLine }
 }
 
-type PatchLineInfo = { position: number, content: string }
+type PatchLineInfo = { position: number, content: string, isAddedLine: boolean }
 
 function getPatchLineInfo(patch: string): Map<number, PatchLineInfo> {
   const lineInfo = new Map<number, PatchLineInfo>()
@@ -109,10 +154,10 @@ function getPatchLineInfo(patch: string): Map<number, PatchLineInfo> {
     }
 
     if (rawLine.startsWith('+') && !rawLine.startsWith('+++')) {
-      lineInfo.set(currentRightLine, { position, content: rawLine })
+      lineInfo.set(currentRightLine, { position, content: rawLine, isAddedLine: true })
       currentRightLine += 1
     } else {
-      lineInfo.set(currentRightLine, { position, content: rawLine })
+      lineInfo.set(currentRightLine, { position, content: rawLine, isAddedLine: false })
       currentRightLine += 1
     }
   }

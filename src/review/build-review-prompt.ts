@@ -71,7 +71,7 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     '      "line": 10,',
     '      "startLine": 8,',
     '      "body": "Actionable review comment in the requested review language.",',
-    '      "suggestedCode": "optional replacement code for the exact line indicated",',
+    '      "suggestedCode": "optional replacement code for the exact added line indicated",',
     '      "documentationUrl": "optional official documentation URL"',
     '    }',
     '  ]',
@@ -79,11 +79,11 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     '',
     'Rules:',
     '- ALWAYS include "line" for every finding. Read the number prefix at the start of each patch line — that IS the line number to use. Do not calculate or guess.',
-    '- CRITICAL: When providing "suggestedCode", verify that "line" points to the EXACT line whose content you want to replace. Read the content next to that line number in the patch and confirm it matches what you intend to change. If unsure, omit suggestedCode.',
+    '- CRITICAL: Only provide "suggestedCode" for added lines marked with a + prefix in the patch. Never provide "suggestedCode" for context lines. Verify that "line" points to the EXACT added line whose content you want to replace. If unsure, omit suggestedCode.',
     '- Use "startLine" together with "line" when the finding spans multiple consecutive lines.',
     '- You can comment on any line visible in the patch (context or added lines), not only on added lines.',
     '- Use verdict "approve" when there are no issues or only minor nitpicks. Use "request_changes" only for correctness, safety, or critical problems. Use "comment" otherwise.',
-    '- Summary must be at most 2 sentences. Focus on the key findings. If the PR is clean, say so.',
+    '- Summary must be at most 2 sentences. Focus on the key findings. If the PR is clean, use: "Pull Request aprovado sem mudanças necessárias."',
     '- Never wrap the JSON in markdown fences.',
     '- Omit optional fields (suggestedCode, documentationUrl, line, startLine) entirely when not applicable. Do not use empty strings or null.'
   ].filter(Boolean).join('\n')
