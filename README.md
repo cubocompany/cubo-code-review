@@ -1,25 +1,17 @@
 # cubo-code-review
 
-`cubo-code-review` is a reusable GitHub Action that turns a PR comment into a formal GitHub review with grouped inline comments.
+A reusable GitHub Action that turns a PR comment into a formal GitHub review with grouped inline comments, powered by AI models via OpenRouter or OpenCode.
 
-## Command
+## How it works
 
-Only the first line is parsed, and only this command triggers the action:
+A maintainer or contributor posts a `/cubo-review` comment on any pull request. The action reads the diff, loads skill documents, calls the configured AI model, and submits a structured GitHub review with inline comments.
 
-```text
-/cubo-review target=openrouter/anthropic/claude-sonnet-4.6 skill=.github/review/SKILL.md
-```
+## Quick start
 
-Supported keys:
-
-- `target=backend/provider/model`
-- `skill=path/to/SKILL.md`
-- `focus=security`
-
-## Reusable workflow usage
+Create `.github/workflows/review.yml` in any repository:
 
 ```yaml
-name: Cubo review
+name: Cubo Review
 
 on:
   issue_comment:
@@ -37,30 +29,162 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: your-org/cubo-code-review@v0.4.0
+
+      - uses: cubocompany/cubo-code-review@v1.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          default-target: openrouter/anthropic/claude-sonnet-4.6
+          default-target: openrouter/anthropic/claude-sonnet-4-5
           review-language: pt-BR
           openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
 ```
 
-## Internal review skill
+Then add the required secret in **Settings → Secrets → Actions**:
 
-The action always loads its own internal `SKILL.md` before any user-supplied repository skill files.
+| Secret | Description |
+|---|---|
+| `OPENROUTER_API_KEY` | Your OpenRouter API key |
+
+Trigger the review by commenting on any PR:
+
+```
+/cubo-review
+```
+
+---
+
+## Action inputs
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `github-token` | Yes | — | GitHub token with `pull-requests: write` permission. Use `${{ secrets.GITHUB_TOKEN }}`. |
+| `default-target` | No | — | Fallback AI target used when the comment does not specify `target=`. Format: `backend/provider/model`. |
+| `default-skill` | No | — | Path to a skill file inside the repository, loaded as the default review guide. Silently ignored if the file does not exist. |
+| `review-language` | No | `en-US` | Language for the review output. Examples: `en-US`, `pt-BR`, `es-ES`. |
+| `openrouter-api-key` | No | — | Required when the target backend is `openrouter`. |
+| `opencode-api-key` | No | — | Required when the target backend is `opencode`. |
+
+> The `COMMENT_BODY` environment variable must be set to `${{ github.event.comment.body }}` so the action can read the PR comment that triggered it.
+
+---
+
+## Command syntax
+
+Only the **first line** of the comment is parsed. All keys are optional.
+
+```
+/cubo-review [target=backend/provider/model] [skill=path/to/SKILL.md] [focus=topic]
+```
+
+| Key | Description |
+|---|---|
+| `target` | Overrides `default-target` for this review. Format: `backend/provider/model`. |
+| `skill` | Overrides `default-skill` for this review. Path relative to the repository root. File must exist or the action fails. |
+| `focus` | Narrows the review to a specific concern (e.g. `security`, `performance`, `naming`). |
+
+### Examples
+
+```
+/cubo-review
+```
+```
+/cubo-review target=openrouter/anthropic/claude-sonnet-4-5
+```
+```
+/cubo-review skill=.github/review/SKILL.md focus=security
+```
+```
+/cubo-review target=opencode/openai/gpt-4o skill=.github/review/SKILL.md focus=performance
+```
+
+---
+
+## Supported backends
+
+| Backend | Input key | Environment variable |
+|---|---|---|
+| `openrouter` | `openrouter-api-key` | `OPENROUTER_API_KEY` |
+| `opencode` | `opencode-api-key` | `OPENCODE_API_KEY` |
+
+---
+
+## Skill documents
+
+Skill documents are Markdown files that guide the AI during the review. The action loads them in the following order:
+
+1. **Internal skill** — built into the action, always loaded.
+2. **Explicit skill** (`skill=` in command) — must exist, throws if missing.
+3. **Default skill** (`default-skill` input) — silently skipped if missing.
+4. **Fallback discovery** — the action automatically searches for any of these filenames in the repository root, `.github/review/`, and in every directory of the changed files (walking up to the root):
+   - `SKILL.md`
+   - `review.md`
+   - `AGENTS.md`
+   - `CLAUDE.md`
+
+### Example skill file
+
+```markdown
+# Review guidelines
+
+- In React files, prefer explicit prop typing.
+- In API handlers, flag missing input validation.
+- Prefer early returns over deeply nested conditionals.
+```
+
+Place it at `.github/review/SKILL.md` and reference it via `default-skill`:
+
+```yaml
+- uses: cubocompany/cubo-code-review@v1.0.0
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    default-target: openrouter/anthropic/claude-sonnet-4-5
+    default-skill: .github/review/SKILL.md
+    openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+  env:
+    COMMENT_BODY: ${{ github.event.comment.body }}
+```
+
+---
 
 ## Review outcome
 
-- `REQUEST_CHANGES` when at least one finding is labeled `issue`
-- `COMMENT` otherwise
+| Result | Condition |
+|---|---|
+| `REQUEST_CHANGES` | At least one finding is categorized as `issue` |
+| `COMMENT` | All findings are suggestions, nitpicks, or praise |
 
+---
 
-## v4 robustness upgrades
+## Complete workflow example
 
-- Safer diff anchoring with file-level fallback when a line cannot be mapped to the patch.
-- Prompt truncation and omission for large PRs.
-- Safer model-response parsing with automatic fallback summary when the model returns invalid JSON.
-- Additional integration tests for line anchoring, prompt truncation, and parser fallback.
+```yaml
+name: Cubo Review
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/cubo-review') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cubocompany/cubo-code-review@v1.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          default-target: openrouter/anthropic/claude-sonnet-4-5
+          default-skill: .github/review/SKILL.md
+          review-language: pt-BR
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+```
