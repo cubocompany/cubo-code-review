@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { PullRequestFile, SkillDocument } from './types.js'
 
-const INTERNAL_SKILL_PATH = path.resolve(process.cwd(), 'src/internal/SKILL.md')
+const INTERNAL_SKILL_PATH = path.resolve(process.env.GITHUB_ACTION_PATH ?? process.cwd(), 'dist/bundle/SKILL.md')
 const FALLBACK_FILENAMES = ['SKILL.md', 'review.md', 'AGENTS.md', 'CLAUDE.md']
 
 export type ResolveSkillOptions = {
