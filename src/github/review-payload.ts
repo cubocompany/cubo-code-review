@@ -16,8 +16,8 @@ export function buildInlineReviewComments(files: PullRequestFile[], findings: Mo
       return []
     }
 
-    const body = buildFindingBody(finding)
     const anchor = resolveAnchor(file, finding)
+    const body = buildFindingBody(finding, anchor)
     if (anchor.type === 'file') {
       return [{ path: finding.path, body, subject_type: 'file' }]
     }
@@ -34,40 +34,53 @@ export function determineReviewEvent(result: ModelReviewResult): 'COMMENT' | 'RE
   return hasIssue ? 'REQUEST_CHANGES' : 'COMMENT'
 }
 
-function buildFindingBody(finding: ModelFinding): string {
+function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string {
   const prefix = `${finding.category.toUpperCase()}:`
   const docs = finding.documentationUrl ? `\n\nOfficial documentation: ${finding.documentationUrl}` : ''
-  const suggestion = finding.suggestedCode && finding.line
-    ? `\n\n\`\`\`suggestion\n${finding.suggestedCode}\n\`\`\``
-    : ''
+
+  let suggestion = ''
+  if (finding.suggestedCode && finding.line && anchor.type === 'line') {
+    const lineContent = anchor.content.replace(/^[+ ]/, '')
+    const codeNormalized = finding.suggestedCode.trim()
+    const lineNormalized = lineContent.trim()
+    if (codeNormalized !== lineNormalized) {
+      suggestion = `\n\n\`\`\`suggestion\n${finding.suggestedCode}\n\`\`\``
+    }
+  }
 
   return `${prefix} ${finding.body}${docs}${suggestion}`
 }
 
-function resolveAnchor(file: PullRequestFile, finding: ModelFinding): { type: 'line', position: number } | { type: 'file' } {
+type ResolvedAnchor =
+  | { type: 'line', position: number, content: string }
+  | { type: 'file' }
+
+function resolveAnchor(file: PullRequestFile, finding: ModelFinding): ResolvedAnchor {
   if (!finding.line || !file.patch) {
     return { type: 'file' }
   }
 
-  const linePositions = getPatchLinePositions(file.patch)
-  const position = linePositions.get(finding.line)
-  if (position === undefined) {
+  const patchLines = getPatchLineInfo(file.patch)
+  const info = patchLines.get(finding.line)
+  if (info === undefined) {
     return { type: 'file' }
   }
 
   if (finding.startLine !== undefined) {
     for (let current = finding.startLine; current < finding.line; current += 1) {
-      if (!linePositions.has(current)) {
+      if (!patchLines.has(current)) {
         return { type: 'file' }
       }
     }
   }
 
-  return { type: 'line', position }
+  return { type: 'line', position: info.position, content: info.content }
 }
 
-function getPatchLinePositions(patch: string): Map<number, number> {
-  const lineToPosition = new Map<number, number>()
+type PatchLineInfo = { position: number, content: string }
+
+function getPatchLineInfo(patch: string): Map<number, PatchLineInfo> {
+  const lineInfo = new Map<number, PatchLineInfo>()
   let currentRightLine = 0
   let position = 0
 
@@ -85,15 +98,18 @@ function getPatchLinePositions(patch: string): Map<number, number> {
 
     position += 1
 
+    if (rawLine.startsWith('-') && !rawLine.startsWith('---')) {
+      continue
+    }
+
     if (rawLine.startsWith('+') && !rawLine.startsWith('+++')) {
-      lineToPosition.set(currentRightLine, position)
+      lineInfo.set(currentRightLine, { position, content: rawLine })
       currentRightLine += 1
-    } else if (rawLine.startsWith('-') && !rawLine.startsWith('---')) {
-      // deletion line — advances position but not the right-side line counter
     } else {
+      lineInfo.set(currentRightLine, { position, content: rawLine })
       currentRightLine += 1
     }
   }
 
-  return lineToPosition
+  return lineInfo
 }
