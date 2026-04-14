@@ -78,7 +78,7 @@ jobs:
 
       - name: Commit built dist to repo
         run: |
-          git add dist/bundle/
+          git add -f dist/bundle/
           git diff --staged --quiet && echo "Nothing to commit" && exit 0
           git commit -m "chore: build dist for ${GITHUB_REF_NAME}"
 
