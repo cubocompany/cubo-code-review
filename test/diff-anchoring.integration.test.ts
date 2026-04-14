@@ -40,6 +40,6 @@ test('buildInlineReviewComments anchors to context lines visible in the diff', (
   ])
 
   assert.equal(comments.length, 1)
-  assert.equal(comments[0].position, 2)
+  assert.equal(comments[0].position, 1)
   assert.equal(comments[0].subject_type, undefined)
 })

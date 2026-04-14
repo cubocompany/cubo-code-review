@@ -36,13 +36,26 @@ export function buildReviewBody(
   result: ModelReviewResult,
   fileComments: Array<{ path: string, body: string, subject_type?: 'file' }>
 ): string {
-  const baseSummary = result.verdict === 'approve' && result.findings.length === 0
-    ? 'Pull Request aprovado sem mudanças necessárias.'
-    : result.summary
+  const baseSummary = buildDirectSummary(result)
 
   const fileCommentsText = fileComments.length > 0
     ? '\n\n---\n**File-level findings:**\n' + fileComments.map((c) => `- \`${c.path}\`: ${c.body}`).join('\n')
     : ''
 
   return baseSummary + fileCommentsText
+}
+
+function buildDirectSummary(result: ModelReviewResult): string {
+  if (result.verdict === 'approve' && result.findings.length === 0) {
+    return 'Pull Request aprovado sem mudanças necessárias.'
+  }
+
+  const hasBlockingIssue = result.verdict === 'request_changes'
+    || result.findings.some((finding) => finding.category === 'issue')
+
+  if (hasBlockingIssue) {
+    return 'Revisei o PR e deixei comentários que precisam de atenção.'
+  }
+
+  return 'Revisei o PR e deixei alguns comentários para consideração.'
 }

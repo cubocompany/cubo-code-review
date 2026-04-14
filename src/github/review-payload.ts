@@ -38,7 +38,7 @@ export function determineReviewEvent(result: ModelReviewResult): 'COMMENT' | 'RE
 }
 
 function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string {
-  const prefix = `${finding.category.toUpperCase()}:`
+  const prefix = buildConventionalPrefix(finding)
   const docs = finding.documentationUrl ? `\n\nOfficial documentation: ${finding.documentationUrl}` : ''
 
   let suggestion = ''
@@ -52,6 +52,17 @@ function buildFindingBody(finding: ModelFinding, anchor: ResolvedAnchor): string
   }
 
   return `${prefix} ${finding.body}${docs}${suggestion}`
+}
+
+function buildConventionalPrefix(finding: ModelFinding): string {
+  switch (finding.category) {
+    case 'issue':
+      return '**issue (blocking):**'
+    case 'refactor':
+      return '**suggestion:**'
+    default:
+      return `**${finding.category}:**`
+  }
 }
 
 function isSemanticallyCompatible(finding: ModelFinding, anchor: Extract<ResolvedAnchor, { type: 'line' }>): boolean {
@@ -134,6 +145,7 @@ function getPatchLineInfo(patch: string): Map<number, PatchLineInfo> {
   const lineInfo = new Map<number, PatchLineInfo>()
   let currentRightLine = 0
   let position = 0
+  let inHunk = false
 
   for (const rawLine of patch.split('\n')) {
     if (rawLine.startsWith('\\')) continue
@@ -141,11 +153,11 @@ function getPatchLineInfo(patch: string): Map<number, PatchLineInfo> {
     const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(rawLine)
     if (header) {
       currentRightLine = Number(header[1])
-      position += 1
+      inHunk = true
       continue
     }
 
-    if (position === 0) continue
+    if (!inHunk) continue
 
     position += 1
 

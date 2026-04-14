@@ -28,9 +28,9 @@ test('builds grouped inline review comments with categories and suggestions', ()
   ], result.findings)
 
   assert.equal(comments.length, 2)
-  assert.match(comments[0].body, /^ISSUE:/)
+  assert.match(comments[0].body, /^\*\*issue(?: \(blocking\))?:\*\*/) 
   assert.match(comments[0].body, /```suggestion/)
-  assert.equal(comments[0].position, 2)
+  assert.equal(comments[0].position, 1)
   assert.equal(comments[1].subject_type, 'file')
   assert.equal(determineReviewEvent(result), 'REQUEST_CHANGES')
 })
@@ -54,9 +54,9 @@ test('keeps inline comment but omits suggestion block for context lines', () => 
   ], result.findings)
 
   assert.equal(comments.length, 1)
-  assert.equal(comments[0].position, 2)
+  assert.equal(comments[0].position, 1)
   assert.doesNotMatch(comments[0].body, /```suggestion/)
-  assert.match(comments[0].body, /^SUGGESTION:/)
+  assert.match(comments[0].body, /^\*\*suggestion:\*\*/)
 })
 
 test('falls back to file-level comment when target line is semantically incompatible', () => {

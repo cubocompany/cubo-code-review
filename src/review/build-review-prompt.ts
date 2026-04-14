@@ -62,7 +62,7 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     '',
     'Return only valid JSON using this schema:',
     '{',
-    '  "summary": "string (1-2 sentences about the most important findings, or state the PR looks good)",',
+    '  "summary": "string (short review outcome only; do not restate the implementation)",',
     '  "verdict": "approve | comment | request_changes",',
     '  "findings": [',
     '    {',
@@ -82,8 +82,9 @@ export function buildReviewPromptWithMetadata(context: ReviewContext): PromptBui
     '- CRITICAL: Only provide "suggestedCode" for added lines marked with a + prefix in the patch. Never provide "suggestedCode" for context lines. Verify that "line" points to the EXACT added line whose content you want to replace. If unsure, omit suggestedCode.',
     '- Use "startLine" together with "line" when the finding spans multiple consecutive lines.',
     '- You can comment on any line visible in the patch (context or added lines), not only on added lines.',
+    '- Format every finding body using Conventional Comments style: bold lowercase label followed by a colon, for example `**suggestion:**`, `**nitpick:**`, `**question:**`, or `**issue (blocking):**`.',
     '- Use verdict "approve" when there are no issues or only minor nitpicks. Use "request_changes" only for correctness, safety, or critical problems. Use "comment" otherwise.',
-    '- Summary must be at most 2 sentences. Focus on the key findings. If the PR is clean, use: "Pull Request aprovado sem mudanças necessárias."',
+    '- Summary must be at most 2 short sentences and must describe only the review outcome. Do not restate what the PR implemented. If the PR is clean, use exactly: "Pull Request aprovado sem mudanças necessárias."',
     '- Never wrap the JSON in markdown fences.',
     '- Omit optional fields (suggestedCode, documentationUrl, line, startLine) entirely when not applicable. Do not use empty strings or null.'
   ].filter(Boolean).join('\n')
